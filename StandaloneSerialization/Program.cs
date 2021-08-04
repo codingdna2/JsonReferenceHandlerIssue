@@ -1,39 +1,64 @@
 ﻿using JsonReferenceHandlerIssue;
 using JsonReferenceHandlerIssue.Controllers;
-using System;
-using System.IO;
+using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace StandaloneSerialization
 {
     class Program
     {
-        static async Task Main(string[] args)
+        static void Main()
         {
-            Console.WriteLine("Press ESC or CTRL-C to stop");
 
-            var stream = new MemoryStream();
+            // using a global ReferenceHandler mitigates the issue
+            //var handler = new ReferenceHandler();
 
-            while (!(Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.Escape))
+            while (true)
             {
-                var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
-                {
-                    MaxDepth = 32,
-                    ReferenceHandler = ReferenceHandler.Preserve,
-                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
-                };
-
+                // Returns array of 3000 forecast objects -- no repeating references
                 WeatherForecast[] forecasts = new WeatherForecastController(null).Get().ToArray();
 
-                stream.Position = 0;
+                var handler = new ReferenceHandler();
 
-                await JsonSerializer.SerializeAsync(stream, forecasts, options);
+                foreach (var forecast in forecasts)
+                {
+                    handler.GetReference(forecast, out _);
+                    handler.GetReference(forecast.City, out _);
+                    handler.GetReference(forecast.Summary, out _);
+                }
+
+                //handler.Reset();
+            }
+        }
+
+        public class ReferenceHandler
+        {
+            private int _referenceCount = 0;
+            private Dictionary<object, string> _objectToReferenceIdMap = new(ReferenceEqualityComparer.Instance);
+
+            public string GetReference<T>(T value, out bool alreadyExists) where T : class
+            {
+                if (_objectToReferenceIdMap.TryGetValue(value, out string referenceId))
+                {
+                    alreadyExists = true;
+                }
+                else
+                {
+                    _referenceCount++;
+                    referenceId = _referenceCount.ToString();
+                    _objectToReferenceIdMap.Add(value, referenceId);
+                    alreadyExists = false;
+                }
+
+                return referenceId;
             }
 
-            Console.WriteLine("Closing..");
+            public void Reset()
+            {
+                _objectToReferenceIdMap.Clear();
+                _referenceCount = 0;
+            }
         }
     }
 }
