@@ -10,10 +10,6 @@ namespace StandaloneSerialization
     {
         static void Main()
         {
-
-            // using a global ReferenceHandler mitigates the issue
-            //var handler = new ReferenceHandler();
-
             while (true)
             {
                 // Returns array of 3000 forecast objects -- no repeating references
